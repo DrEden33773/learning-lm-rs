@@ -1,4 +1,5 @@
 use std::{slice, sync::Arc, vec};
+
 pub struct Tensor<T> {
     data: Arc<Box<[T]>>,
     shape: Vec<usize>,
@@ -13,7 +14,7 @@ impl<T: Copy + Clone + Default> Tensor<T> {
             data: Arc::new(data.into_boxed_slice().try_into().unwrap()),
             shape: shape.clone(),
             offset: 0,
-            length: length,
+            length,
         }
     }
 
@@ -73,12 +74,12 @@ impl Tensor<f32> {
         let a = self.data();
         let b = other.data();
 
-        return a.iter().zip(b).all(|(x, y)| float_eq(x, y, rel));
+        a.iter().zip(b).all(|(x, y)| float_eq(x, y, rel))
     }
     #[allow(unused)]
     pub fn print(&self) {
         println!(
-            "shpae: {:?}, offset: {}, length: {}",
+            "shape: {:?}, offset: {}, length: {}",
             self.shape, self.offset, self.length
         );
         let dim = self.shape()[self.shape().len() - 1];

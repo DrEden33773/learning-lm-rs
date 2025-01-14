@@ -29,8 +29,8 @@ impl Llama<f32> {
         let config = File::open(model_dir.as_ref().join("config.json")).unwrap();
         let config: LlamaConfigJson = serde_json::from_reader(config).unwrap();
         let model_file = std::fs::read(model_dir.as_ref().join("model.safetensors")).unwrap();
-        let safetensor = SafeTensors::deserialize(&model_file).unwrap();
-        let params = LLamaParams::from_safetensors(&safetensor, &config);
+        let safe_tensor = SafeTensors::deserialize(&model_file).unwrap();
+        let params = LLamaParams::from_safetensors(&safe_tensor, &config);
 
         Self {
             vocab: config.vocab_size,

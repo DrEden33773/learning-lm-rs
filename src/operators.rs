@@ -144,7 +144,7 @@ pub fn random_sample(x: &Tensor<f32>, top_p: f32, top_k: u32, temperature: f32) 
         #[inline]
         fn from((i, p): (usize, &f32)) -> Self {
             Self {
-                val: p.clone(),
+                val: *p,
                 tok: i as _,
             }
         }

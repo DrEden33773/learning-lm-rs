@@ -11,7 +11,7 @@ impl<T: Copy + Clone + Default> Tensor<T> {
     pub fn new(data: Vec<T>, shape: &Vec<usize>) -> Self {
         let length = data.len();
         Tensor {
-            data: Arc::new(data.into_boxed_slice().try_into().unwrap()),
+            data: Arc::new(data.into_boxed_slice()),
             shape: shape.clone(),
             offset: 0,
             length,

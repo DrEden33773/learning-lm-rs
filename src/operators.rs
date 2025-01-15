@@ -71,25 +71,120 @@ pub fn masked_softmax(y: &mut Tensor<f32>) {
 }
 
 pub fn rms_norm(y: &mut Tensor<f32>, x: &Tensor<f32>, w: &Tensor<f32>, epsilon: f32) {
-    todo!("实现 rms_norm, 计算前做一些必要的检查会帮助你后续调试")
+    assert_eq!(y.shape(), x.shape(), "`y` and `x` must have the same shape");
+    assert_eq!(w.shape().len(), 1, "`w` must be a 1D tensor");
+    assert_eq!(
+        w.shape()[0],
+        *x.shape().last().unwrap(),
+        "`w` must match the last dimension of `x`"
+    );
+
+    let n = *x.shape().last().unwrap();
+    for i in 0..x.data().len() / n {
+        let mut sum_sq = 0.0;
+        for j in 0..n {
+            sum_sq += x.data()[i * n + j].powi(2);
+        }
+        let rms = (sum_sq / n as f32 + epsilon).sqrt();
+        for j in 0..n {
+            unsafe {
+                y.data_mut()[i * n + j] = x.data()[i * n + j] * w.data()[j] / rms;
+            }
+        }
+    }
 }
 
-// y = silu(x) * y
-// hint: this is an element-wise operation
+/// y = silu(x) * y
+///
+/// hint: this is an element-wise operation
 pub fn swiglu(y: &mut Tensor<f32>, x: &Tensor<f32>) {
-    // let len = y.size();
-    // assert!(len == x.size());
+    /// sigmoid(x) = 1 / (1 + exp(-x))
+    #[inline]
+    fn sigmoid(x: f32) -> f32 {
+        1.0 / (1.0 + (-x).exp())
+    }
 
-    // let _y = unsafe { y.data_mut() };
-    // let _x = x.data();
+    /// silu(x) = x * sigmoid(x)
+    #[inline]
+    fn silu(x: f32) -> f32 {
+        x * sigmoid(x)
+    }
 
-    todo!("实现 silu, 这里给了一些前期准备工作的提示, 你可以参考")
+    let len = y.size();
+    assert!(len == x.size());
+
+    let y_data = unsafe { y.data_mut() };
+    let x_data = x.data();
+
+    for i in 0..len {
+        y_data[i] *= silu(x_data[i]);
+    }
 }
 
-// C = beta * C + alpha * A @ B^T
-// hint: You don't need to do an explicit transpose of B
+pub fn infer_broadcast(a_shape: &[usize], b_shape: &[usize]) -> Option<Vec<usize>> {
+    let max_rank = a_shape.len().max(b_shape.len());
+    let mut res = vec![1; max_rank];
+
+    let mut i = a_shape.len() as isize - 1;
+    let mut j = b_shape.len() as isize - 1;
+    for k in (0..max_rank).rev() {
+        let a = if i >= 0 { a_shape[i as usize] } else { 1 };
+        let b = if j >= 0 { b_shape[j as usize] } else { 1 };
+        if a != b && a != 1 && b != 1 {
+            return None;
+        }
+        res[k] = a.max(b);
+        i = i.saturating_sub(1);
+        j = j.saturating_sub(1);
+    }
+
+    Some(res)
+}
+
+/// Y_ij = Y_ij * X_ij
+pub fn element_wise_mul(y: &mut Tensor<f32>, x: &Tensor<f32>) {
+    assert_eq!(y.shape(), x.shape(), "`y` and `x` must have the same shape");
+    let len = y.size();
+    let y_data = unsafe { y.data_mut() };
+    let x_data = x.data();
+    for i in 0..len {
+        y_data[i] *= x_data[i];
+    }
+}
+
+/// C = beta * C + alpha * A @ B^T
+///
+/// hint: You don't need to do an explicit transpose of B
 pub fn matmul_transb(c: &mut Tensor<f32>, beta: f32, a: &Tensor<f32>, b: &Tensor<f32>, alpha: f32) {
-    todo!("实现 matmul_transb, 计算前做一些必要的检查会帮助你后续调试");
+    assert_eq!(a.shape().len(), 2, "> 2D tensor is not supported");
+    assert_eq!(
+        a.shape().len(),
+        b.shape().len(),
+        "`A` and `B` must have the same rank"
+    );
+    assert_eq!(a.shape()[1], b.shape()[1], "inner dimensions mismatch");
+
+    let m = a.shape()[0];
+    let n = *a.shape().last().unwrap();
+    let k = b.shape()[0];
+    let res_shape = vec![m, k];
+    assert_eq!(*c.shape(), res_shape, "output shape mismatch");
+
+    let a_data = a.data();
+    let b_data = b.data();
+    let c_data = unsafe { c.data_mut() };
+
+    for i in 0..m {
+        for j in 0..k {
+            let mut sum = 0.0;
+            for l in 0..n {
+                // T_ij = sum_l(A_il * B_jl)
+                sum += a_data[i * n + l] * b_data[j * n + l];
+            }
+            // C.shape = [m, k]
+            c_data[i * k + j] = beta * c_data[i * k + j] + alpha * sum;
+        }
+    }
 }
 
 // Dot product of two tensors (treated as vectors)
